@@ -1,0 +1,8 @@
+ECASTILLOFUENTE\SQLEXPRESS
+
+Minuta_Logistico
+
+SQL SERVER Configuration manager 
+	Sql Server network comfiguration
+		Protocols for SQLEXPRESS
+			IPAII tcp dynamic ports : 56948
