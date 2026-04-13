@@ -3,14 +3,24 @@
 import { useState, useEffect } from 'react';
 import '@/app/globals.css';
 
+interface Licitacion {
+  id: string;
+  code: string;
+  name: string;
+}
+
 interface User {
   id: string;
   username: string;
+  firstName: string | null;
+  lastName: string | null;
   email: string | null;
   expirationDate: string | null;
   isLocked: boolean;
+  canWrite: boolean;
   profileId?: string;
   profile?: { name: string };
+  licitaciones?: { licitacion: Licitacion }[];
 }
 
 interface Profile {
@@ -21,6 +31,7 @@ interface Profile {
 export default function UsuariosPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [allLicitaciones, setAllLicitaciones] = useState<Licitacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -28,16 +39,21 @@ export default function UsuariosPage() {
   // Form state
   const [formData, setFormData] = useState({
     username: '',
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     profileId: '',
     expirationDate: '',
     isLocked: false,
+    canWrite: false,
+    licitacionIds: [] as string[],
   });
 
   useEffect(() => {
     fetchUsers();
     fetchProfiles();
+    fetchLicitaciones();
   }, []);
 
   const fetchUsers = async () => {
@@ -62,15 +78,29 @@ export default function UsuariosPage() {
     }
   };
 
+  const fetchLicitaciones = async () => {
+    try {
+      const res = await fetch('/api/config/licitaciones');
+      const data = await res.json();
+      if (Array.isArray(data)) setAllLicitaciones(data);
+    } catch (error) {
+      console.error('Error fetching licitaciones:', error);
+    }
+  };
+
   const handleEdit = (user: User) => {
     setEditingUser(user);
     setFormData({
       username: user.username,
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
       email: user.email || '',
       password: '', // Password stay empty unless changed
       profileId: user.profileId || '',
       expirationDate: user.expirationDate ? user.expirationDate.split('T')[0] : '',
       isLocked: user.isLocked,
+      canWrite: user.canWrite,
+      licitacionIds: user.licitaciones?.map(l => l.licitacion.id) || [],
     });
     setIsFormOpen(true);
   };
@@ -79,11 +109,15 @@ export default function UsuariosPage() {
     setEditingUser(null);
     setFormData({
       username: '',
+      firstName: '',
+      lastName: '',
       email: '',
       password: '',
       profileId: profiles[0]?.id || '',
       expirationDate: '',
       isLocked: false,
+      canWrite: false,
+      licitacionIds: [],
     });
     setIsFormOpen(true);
   };
@@ -112,6 +146,15 @@ export default function UsuariosPage() {
     }
   };
 
+  const toggleLicitacion = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      licitacionIds: prev.licitacionIds.includes(id)
+        ? prev.licitacionIds.filter(lid => lid !== id)
+        : [...prev.licitacionIds, id]
+    }));
+  };
+
   const toggleLock = async (userId: string, currentStatus: boolean) => {
     try {
       await fetch(`/api/config/usuarios/${userId}`, {
@@ -130,7 +173,7 @@ export default function UsuariosPage() {
       <header className="page-header">
         <div>
           <h1>Gestión de Usuarios</h1>
-          <p className="subtitle">Administra las cuentas, correos y permisos del sistema</p>
+          <p className="subtitle">Administra los datos personales, perfiles y licitaciones asignadas</p>
         </div>
         {!isFormOpen && <button className="btn-primary" onClick={handleCreate}>+ Nuevo Usuario</button>}
       </header>
@@ -146,6 +189,26 @@ export default function UsuariosPage() {
                   type="text" 
                   value={formData.username} 
                   onChange={e => setFormData({...formData, username: e.target.value})}
+                  required 
+                />
+              </div>
+              <div className="form-group">
+                <label>Nombre</label>
+                <input 
+                  type="text" 
+                  value={formData.firstName} 
+                  onChange={e => setFormData({...formData, firstName: e.target.value})}
+                  placeholder="Ej: Juan"
+                  required 
+                />
+              </div>
+              <div className="form-group">
+                <label>Apellido</label>
+                <input 
+                  type="text" 
+                  value={formData.lastName} 
+                  onChange={e => setFormData({...formData, lastName: e.target.value})}
+                  placeholder="Ej: Pérez"
                   required 
                 />
               </div>
@@ -187,14 +250,43 @@ export default function UsuariosPage() {
                   onChange={e => setFormData({...formData, expirationDate: e.target.value})}
                 />
               </div>
-              <div className="form-group checkbox-group">
+              
+              <div className="form-group full-width licitaciones-selector">
+                <label>Asociar Licitaciones</label>
+                <div className="licitaciones-grid">
+                  {allLicitaciones.length === 0 ? (
+                    <p className="no-data">No hay licitaciones creadas aún.</p>
+                  ) : (
+                    allLicitaciones.map(l => (
+                      <label key={l.id} className="checkbox-label item">
+                        <input 
+                          type="checkbox" 
+                          checked={formData.licitacionIds.includes(l.id)} 
+                          onChange={() => toggleLicitacion(l.id)}
+                        />
+                        <span><strong className="code-tag">{l.code}</strong> - {l.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="form-group checkboxes-inline full-width">
+                <label className="checkbox-label">
+                  <input 
+                    type="checkbox" 
+                    checked={formData.canWrite} 
+                    onChange={e => setFormData({...formData, canWrite: e.target.checked})}
+                  />
+                  <span>Permiso de Escritura</span>
+                </label>
                 <label className="checkbox-label">
                   <input 
                     type="checkbox" 
                     checked={formData.isLocked} 
                     onChange={e => setFormData({...formData, isLocked: e.target.checked})}
                   />
-                  Cuenta Bloqueada
+                  <span>Cuenta Bloqueada</span>
                 </label>
               </div>
             </div>
@@ -210,26 +302,49 @@ export default function UsuariosPage() {
             <table className="users-table">
               <thead>
                 <tr>
+                  <th>Nombre Completo</th>
                   <th>Usuario</th>
-                  <th>Correo</th>
                   <th>Perfil</th>
-                  <th>Expiración</th>
+                  <th>Permisos</th>
+                  <th>Licitaciones Asignadas</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="text-center">Cargando...</td></tr>
+                  <tr><td colSpan={7} className="text-center">Cargando...</td></tr>
                 ) : users.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center">No hay usuarios registrados</td></tr>
+                  <tr><td colSpan={7} className="text-center">No hay usuarios registrados</td></tr>
                 ) : (
                   users.map(user => (
                     <tr key={user.id}>
-                      <td className="bold">{user.username}</td>
-                      <td className="text-secondary">{user.email || '-'}</td>
+                      <td>
+                        <div className="user-name-cell">
+                          <span className="bold">{user.firstName} {user.lastName}</span>
+                          <span className="email-sub">{user.email}</span>
+                        </div>
+                      </td>
+                      <td className="text-secondary">{user.username}</td>
                       <td>{user.profile?.name || 'N/A'}</td>
-                      <td>{user.expirationDate ? new Date(user.expirationDate).toLocaleDateString() : 'Nunca'}</td>
+                      <td>
+                        <span className={`perm-badge ${user.canWrite || user.profile?.name === 'Administrador' ? 'write' : 'read'}`}>
+                          {(user.canWrite || user.profile?.name === 'Administrador') ? ' Escritura' : 'Lectura'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="licitaciones-tags">
+                          {user.licitaciones && user.licitaciones.length > 0 ? (
+                            user.licitaciones.map(l => (
+                              <span key={l.licitacion.id} className="lic-tag" title={l.licitacion.name}>
+                                {l.licitacion.code}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="no-data">-</span>
+                          )}
+                        </div>
+                      </td>
                       <td>
                         <span className={`badge ${user.isLocked ? 'locked' : 'active'}`}>
                           {user.isLocked ? 'Bloqueado' : 'Activo'}
@@ -268,12 +383,32 @@ export default function UsuariosPage() {
         .form-group input, .form-group select { 
           background: rgba(15, 23, 42, 0.3); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; color: white; font-family: inherit;
         }
-        .checkbox-group { justify-content: flex-end; padding-bottom: 0.5rem; }
-        .checkbox-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; color: var(--text-primary) !important; }
+        .checkboxes-inline { display: flex; gap: 2rem; align-items: center; padding-top: 1rem; }
+        .checkbox-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; color: var(--text-primary) !important; font-size: 0.9rem; }
+        .checkbox-label input { width: 18px; height: 18px; accent-color: var(--accent); }
+        
+        /* Licitaciones Selector */
+        .licitaciones-selector { background: rgba(0, 0, 0, 0.2); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+        .licitaciones-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem; max-height: 200px; overflow-y: auto; padding-right: 0.5rem; }
+        .licitaciones-grid .item { background: rgba(255, 255, 255, 0.03); padding: 0.75rem; border-radius: 8px; border: 1px solid transparent; transition: all 0.2s; }
+        .licitaciones-grid .item:hover { border-color: var(--accent); background: rgba(59, 130, 246, 0.05); }
+        .code-tag { color: var(--accent); font-family: monospace; }
+        .no-data { color: var(--text-secondary); font-style: italic; font-size: 0.9rem; }
+
         .form-actions { display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid var(--border); padding-top: 2rem; }
 
         .users-table-container { overflow: hidden; }
         .users-table { width: 100%; border-collapse: collapse; }
+        .user-name-cell { display: flex; flex-direction: column; }
+        .email-sub { font-size: 0.75rem; color: var(--text-secondary); font-weight: 400; }
+        
+        .licitaciones-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; max-width: 250px; }
+        .lic-tag { background: rgba(59, 130, 246, 0.15); color: #60a5fa; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; border: 1px solid rgba(59, 130, 246, 0.3); }
+
+        .perm-badge { padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+        .perm-badge.write { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
+        .perm-badge.read { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
+        
         .users-table th { padding: 1.25rem 1rem; color: var(--text-secondary); font-size: 0.85rem; text-align: left; border-bottom: 1px solid var(--border); }
         .users-table td { padding: 1.25rem 1rem; border-bottom: 1px solid rgba(51, 65, 85, 0.5); }
         .bold { font-weight: 600; color: var(--text-primary); }

@@ -18,7 +18,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.profile !== 'Administrador') {
+    if (!session || (session.user.profile !== 'Administrador' && !session.user.canWrite)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 

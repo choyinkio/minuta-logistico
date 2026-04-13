@@ -11,11 +11,11 @@ export async function PUT(
   try {
     const { id: profileId } = await params;
     const session = await getServerSession(authOptions);
-    if (!session || session.user.profile !== 'Administrador') {
+    if (!session || (session.user.profile !== 'Administrador' && !session.user.canWrite)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const { name, description, menuIds } = await req.json();
+    const { name, description, roleIds } = await req.json();
 
     // Perform update in a transaction
     const profile = await prisma.$transaction(async (tx) => {
@@ -24,19 +24,19 @@ export async function PUT(
         data: { name, description }
       });
 
-      // If menuIds provided, update associations
-      if (menuIds && Array.isArray(menuIds)) {
+      // If roleIds provided, update associations
+      if (roleIds && Array.isArray(roleIds)) {
         // Delete current
-        await tx.profileMenu.deleteMany({
+        await tx.profileRole.deleteMany({
           where: { profileId: profileId }
         });
 
         // Add new
-        if (menuIds.length > 0) {
-          await tx.profileMenu.createMany({
-            data: menuIds.map((menuId: string) => ({
+        if (roleIds.length > 0) {
+          await tx.profileRole.createMany({
+            data: roleIds.map((roleId: string) => ({
               profileId: profileId,
-              menuId
+              roleId
             }))
           });
         }
@@ -49,7 +49,7 @@ export async function PUT(
       action: "PROFILE_EDIT",
       userId: session.user.id,
       username: session.user.name || "Admin",
-      description: `Editado perfil: ${name}. Permisos actualizados.`
+      description: `Editado perfil: ${name}. Roles actualizados.`
     });
 
     return NextResponse.json(profile);
@@ -66,7 +66,7 @@ export async function DELETE(
   try {
     const { id: profileId } = await params;
     const session = await getServerSession(authOptions);
-    if (!session || session.user.profile !== 'Administrador') {
+    if (!session || (session.user.profile !== 'Administrador' && !session.user.canWrite)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
@@ -76,7 +76,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'No se puede eliminar un perfil con usuarios asociados.' }, { status: 400 });
     }
 
-    await prisma.profileMenu.deleteMany({
+    await prisma.profileRole.deleteMany({
       where: { profileId: profileId }
     });
 

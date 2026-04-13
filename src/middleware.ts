@@ -24,6 +24,11 @@ export default withAuth(
       const pathsToCheck = permittedPaths || [];
       const hasPermission = pathsToCheck.some(p => path === p || path.startsWith(p + "/"));
 
+      // Bypass Maestro para el Administrador
+      if (token?.profile === "Administrador") {
+        return; // Permitir siempre al Administrador
+      }
+
       if (!hasPermission) {
         return NextResponse.rewrite(new URL("/acceso-denegado", req.url));
       }

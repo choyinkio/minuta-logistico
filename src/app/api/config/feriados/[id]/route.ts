@@ -11,7 +11,7 @@ export async function PUT(
   try {
     const { id: holidayId } = await params;
     const session = await getServerSession(authOptions);
-    if (!session || session.user.profile !== 'Administrador') {
+    if (!session || (session.user.profile !== 'Administrador' && !session.user.canWrite)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
@@ -46,7 +46,7 @@ export async function DELETE(
   try {
     const { id: holidayId } = await params;
     const session = await getServerSession(authOptions);
-    if (!session || session.user.profile !== 'Administrador') {
+    if (!session || (session.user.profile !== 'Administrador' && !session.user.canWrite)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 

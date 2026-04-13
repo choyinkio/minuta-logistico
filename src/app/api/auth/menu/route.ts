@@ -15,10 +15,19 @@ export async function GET() {
       where: { username: session.user.name as string },
       include: {
         profile: {
-          include: { menus: { include: { menuItem: true } } }
-        },
-        roles: {
-          include: { role: { include: { menus: { include: { menuItem: true } } } } }
+          include: {
+            roles: {
+              include: {
+                role: {
+                  include: {
+                    menus: {
+                      include: { menuItem: true }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     });
@@ -27,20 +36,18 @@ export async function GET() {
       return NextResponse.json([]);
     }
 
-    // Collect all unique menu items from profile and roles
+    // Collect all unique menu items from profile -> roles -> menus
     const menuMap = new Map();
 
-    // From Profile
-    user.profile?.menus.forEach(pm => {
-      menuMap.set(pm.menuItem.id, pm.menuItem);
-    });
-
-    // From Roles
-    user.roles.forEach(ur => {
-      ur.role.menus.forEach(rm => {
-        menuMap.set(rm.menuItem.id, rm.menuItem);
+    if (user.profile?.roles) {
+      user.profile.roles.forEach(pr => {
+        if (pr.role.menus) {
+          pr.role.menus.forEach(rm => {
+            menuMap.set(rm.menuItem.id, rm.menuItem);
+          });
+        }
       });
-    });
+    }
 
     const permittedMenus = Array.from(menuMap.values());
     return NextResponse.json(permittedMenus);

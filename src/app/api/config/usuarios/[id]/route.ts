@@ -17,31 +17,52 @@ export async function PUT(
     }
 
     const body = await req.json();
-    const { username, email, password, profileId, expirationDate, isLocked } = body;
+    const { 
+      username, email, password, profileId, expirationDate, 
+      isLocked, canWrite, firstName, lastName, licitacionIds 
+    } = body;
 
     const data: any = {};
     if (username !== undefined) data.username = username;
+    if (firstName !== undefined) data.firstName = firstName;
+    if (lastName !== undefined) data.lastName = lastName;
     if (email !== undefined) data.email = email;
     if (profileId !== undefined) data.profileId = profileId;
     if (expirationDate !== undefined) data.expirationDate = expirationDate ? new Date(expirationDate) : null;
     if (isLocked !== undefined) data.isLocked = !!isLocked;
+    if (canWrite !== undefined) data.canWrite = !!canWrite;
     
     // Only update password if provided
     if (password) {
       data.password = await bcrypt.hash(password, 10);
     }
 
+    // Handle licitaciones update
+    if (licitacionIds && Array.isArray(licitacionIds)) {
+      data.licitaciones = {
+        deleteMany: {},
+        create: licitacionIds.map((id: string) => ({
+          licitacion: { connect: { id } }
+        }))
+      };
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data,
-      include: { profile: true }
+      include: { 
+        profile: true,
+        licitaciones: {
+          include: { licitacion: true }
+        }
+      }
     });
 
     await createLog({
       action: "USER_EDIT",
       userId: session.user.id,
       username: session.user.name || "Admin",
-      description: `Edición de usuario: ${updatedUser.username}. Campos modificados: ${Object.keys(data).join(', ')}`
+      description: `Edición de usuario: ${updatedUser.username} (${updatedUser.firstName} ${updatedUser.lastName}). Campos modificados: ${Object.keys(data).join(', ')}`
     });
 
     return NextResponse.json(updatedUser);

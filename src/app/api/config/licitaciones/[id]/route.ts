@@ -9,44 +9,36 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: roleId } = await params;
+    const { id: licitacionId } = await params;
     const session = await getServerSession(authOptions);
     if (!session || (session.user.profile !== 'Administrador' && !session.user.canWrite)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const { name, menuIds } = await req.json();
+    const { code, name, description, startDate, endDate } = await req.json();
 
-    const role = await prisma.$transaction(async (tx) => {
-      const r = await tx.role.update({
-        where: { id: roleId },
-        data: { name }
-      });
+    const data: any = {};
+    if (code) data.code = code;
+    if (name) data.name = name;
+    if (description !== undefined) data.description = description;
+    if (startDate) data.startDate = new Date(startDate + 'T12:00:00');
+    if (endDate) data.endDate = new Date(endDate + 'T12:00:00');
 
-      if (menuIds && Array.isArray(menuIds)) {
-        await tx.roleMenu.deleteMany({ where: { roleId } });
-        if (menuIds.length > 0) {
-          await tx.roleMenu.createMany({
-            data: menuIds.map((menuId: string) => ({
-              roleId,
-              menuId
-            }))
-          });
-        }
-      }
-      return r;
+    const licitacion = await prisma.licitacion.update({
+      where: { id: licitacionId },
+      data
     });
 
     await createLog({
-      action: "ROLE_EDIT",
+      action: "LICITACION_EDIT",
       userId: session.user.id,
       username: session.user.name || "Admin",
-      description: `Editado rol: ${name}. Permisos de menú actualizados.`
+      description: `Editada licitación: ${licitacion.name} (ID: ${licitacionId})`
     });
 
-    return NextResponse.json(role);
+    return NextResponse.json(licitacion);
   } catch (error) {
-    return NextResponse.json({ error: 'Error al actualizar rol' }, { status: 500 });
+    return NextResponse.json({ error: 'Error al actualizar licitación' }, { status: 500 });
   }
 }
 
@@ -55,25 +47,25 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: roleId } = await params;
+    const { id: licitacionId } = await params;
     const session = await getServerSession(authOptions);
     if (!session || (session.user.profile !== 'Administrador' && !session.user.canWrite)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const role = await prisma.role.delete({
-      where: { id: roleId }
+    const licitacion = await prisma.licitacion.delete({
+      where: { id: licitacionId }
     });
 
     await createLog({
-      action: "ROLE_DELETE",
+      action: "LICITACION_DELETE",
       userId: session.user.id,
       username: session.user.name || "Admin",
-      description: `Eliminado rol: ${role.name}`
+      description: `Eliminada licitación: ${licitacion.name} (Código: ${licitacion.code})`
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Error al eliminar rol. Asegúrese que no tenga usuarios asociados.' }, { status: 400 });
+    return NextResponse.json({ error: 'Error al eliminar licitación' }, { status: 500 });
   }
 }

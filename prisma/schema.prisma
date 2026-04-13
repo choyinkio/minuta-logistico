@@ -13,17 +13,30 @@ datasource db {
 model User {
   id             String    @id @default(cuid())
   username       String    @unique
+  firstName      String?
+  lastName       String?
   email          String?   
   password       String
   expirationDate DateTime?
   isLocked       Boolean   @default(false)
+  lockUntil      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   
   profile        Profile?  @relation(fields: [profileId], references: [id])
   profileId      String?
+  canWrite       Boolean   @default(false)
   
-  roles          UserRole[]
+  licitaciones   UserLicitacion[]
+}
+
+model UserLicitacion {
+  user         User       @relation(fields: [userId], references: [id])
+  userId       String
+  licitacion   Licitacion @relation(fields: [licitacionId], references: [id])
+  licitacionId String
+
+  @@id([userId, licitacionId])
 }
 
 model Profile {
@@ -31,13 +44,13 @@ model Profile {
   name        String   @unique
   description String?
   users       User[]
-  menus       ProfileMenu[]
+  roles       ProfileRole[]
 }
 
 model Role {
   id    String     @id @default(cuid())
   name  String     @unique
-  users UserRole[]
+  profiles ProfileRole[]
   menus RoleMenu[]
 }
 
@@ -47,17 +60,16 @@ model MenuItem {
   path        String   @unique
   icon        String?
   category    String   @default("main") // "main" or "config"
-  profiles    ProfileMenu[]
   roles       RoleMenu[]
 }
 
-model ProfileMenu {
-  profile   Profile  @relation(fields: [profileId], references: [id])
+model ProfileRole {
+  profile   Profile @relation(fields: [profileId], references: [id])
   profileId String
-  menuItem  MenuItem @relation(fields: [menuId], references: [id])
-  menuId    String
+  role      Role    @relation(fields: [roleId], references: [id])
+  roleId    String
 
-  @@id([profileId, menuId])
+  @@id([profileId, roleId])
 }
 
 model RoleMenu {
@@ -69,20 +81,69 @@ model RoleMenu {
   @@id([roleId, menuId])
 }
 
-model UserRole {
-  user   User   @relation(fields: [userId], references: [id])
-  userId String
-  role   Role   @relation(fields: [roleId], references: [id])
-  roleId String
-
-  @@id([userId, roleId])
-}
-
 model Holiday {
   id          String   @id @default(cuid())
   date        DateTime @unique
   description String
   createdAt   DateTime @default(now())
+}
+
+model Licitacion {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       UserLicitacion[]
+  sucursales  Sucursal[]
+}
+
+model Pais {
+  id      String   @id @default(cuid())
+  codigo  String   @unique
+  nombre  String
+  regiones Region[]
+}
+
+model Region {
+  id      String   @id @default(cuid())
+  nombre  String
+  paisId  String
+  pais    Pais     @relation(fields: [paisId], references: [id], onDelete: Cascade)
+  ciudades Ciudad[]
+}
+
+model Ciudad {
+  id       String   @id @default(cuid())
+  nombre   String
+  regionId String
+  region   Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  comunas  Comuna[]
+}
+
+model Comuna {
+  id         String     @id @default(cuid())
+  nombre     String
+  ciudadId   String
+  ciudad     Ciudad     @relation(fields: [ciudadId], references: [id], onDelete: Cascade)
+  sucursales Sucursal[]
+}
+
+model Sucursal {
+  id           String     @id @default(cuid())
+  codigo       String     @unique
+  nombre       String
+  direccion    String
+  comunaId     String
+  comuna       Comuna     @relation(fields: [comunaId], references: [id])
+  licitacionId String
+  licitacion   Licitacion @relation(fields: [licitacionId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 }
 
 model Log {

@@ -11,12 +11,18 @@ export async function GET() {
   try {
     const profiles = await prisma.profile.findMany({
       include: {
+        roles: {
+          include: { role: true }
+        }
+      }
+    });
+    const roles = await prisma.role.findMany({
+      include: {
         menus: {
           include: { menuItem: true }
         }
       }
     });
-    const roles = await prisma.role.findMany();
     return NextResponse.json({ profiles, roles });
   } catch (error) {
     console.error(error);
@@ -26,33 +32,44 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.profile !== 'Administrador') {
+  if (!session || (session.user.profile !== 'Administrador' && !session.user.canWrite)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   try {
-    const { name, description, type } = await req.json();
+    const { name, description, type, roleIds, menuIds } = await req.json();
 
     if (type === 'profile') {
       const profile = await prisma.profile.create({
-        data: { name, description }
+        data: { 
+          name, 
+          description,
+          roles: {
+            create: (roleIds || []).map((rid: string) => ({ roleId: rid }))
+          }
+        }
       });
       await createLog({
         action: "PROFILE_CREATE",
         userId: session.user.id,
         username: session.user.name || "Admin",
-        description: `Creación de perfil: ${name}`
+        description: `Creación de perfil: ${name} con ${roleIds?.length || 0} roles`
       });
       return NextResponse.json(profile);
     } else {
       const role = await prisma.role.create({
-        data: { name }
+        data: { 
+          name,
+          menus: {
+            create: (menuIds || []).map((mid: string) => ({ menuId: mid }))
+          }
+        }
       });
       await createLog({
         action: "ROLE_CREATE",
         userId: session.user.id,
         username: session.user.name || "Admin",
-        description: `Creación de rol: ${name}`
+        description: `Creación de rol: ${name} con ${menuIds?.length || 0} menús`
       });
       return NextResponse.json(role);
     }

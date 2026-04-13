@@ -9,44 +9,29 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: roleId } = await params;
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session || (session.user.profile !== 'Administrador' && !session.user.canWrite)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const { name, menuIds } = await req.json();
+    const data = await req.json();
 
-    const role = await prisma.$transaction(async (tx) => {
-      const r = await tx.role.update({
-        where: { id: roleId },
-        data: { name }
-      });
-
-      if (menuIds && Array.isArray(menuIds)) {
-        await tx.roleMenu.deleteMany({ where: { roleId } });
-        if (menuIds.length > 0) {
-          await tx.roleMenu.createMany({
-            data: menuIds.map((menuId: string) => ({
-              roleId,
-              menuId
-            }))
-          });
-        }
-      }
-      return r;
+    const item = await prisma.region.update({
+      where: { id },
+      data
     });
 
     await createLog({
-      action: "ROLE_EDIT",
+      action: "REGION_EDIT",
       userId: session.user.id,
       username: session.user.name || "Admin",
-      description: `Editado rol: ${name}. Permisos de menú actualizados.`
+      description: `Editado region: ${data.nombre || data.codigo}`
     });
 
-    return NextResponse.json(role);
+    return NextResponse.json(item);
   } catch (error) {
-    return NextResponse.json({ error: 'Error al actualizar rol' }, { status: 500 });
+    return NextResponse.json({ error: 'Error al actualizar' }, { status: 500 });
   }
 }
 
@@ -55,25 +40,25 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: roleId } = await params;
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session || (session.user.profile !== 'Administrador' && !session.user.canWrite)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const role = await prisma.role.delete({
-      where: { id: roleId }
+    const item = await prisma.region.delete({
+      where: { id }
     });
 
     await createLog({
-      action: "ROLE_DELETE",
+      action: "REGION_DELETE",
       userId: session.user.id,
       username: session.user.name || "Admin",
-      description: `Eliminado rol: ${role.name}`
+      description: `Eliminado region: ${item.nombre || item.codigo || id}`
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Error al eliminar rol. Asegúrese que no tenga usuarios asociados.' }, { status: 400 });
+    return NextResponse.json({ error: 'Error al eliminar. Verifique que no tenga dependencias hijas.' }, { status: 400 });
   }
 }

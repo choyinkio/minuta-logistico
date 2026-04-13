@@ -19,17 +19,14 @@ export const authOptions: NextAuthOptions = {
           include: { 
             profile: {
               include: {
-                menus: {
-                  include: { menuItem: true }
-                }
-              }
-            },
-            roles: {
-              include: {
-                role: {
+                roles: {
                   include: {
-                    menus: {
-                      include: { menuItem: true }
+                    role: {
+                      include: {
+                        menus: {
+                          include: { menuItem: true }
+                        }
+                      }
                     }
                   }
                 }
@@ -40,24 +37,36 @@ export const authOptions: NextAuthOptions = {
 
         if (!user) return null;
 
-        // ... (check account locked/expired)
+        // Check if account is locked
+        if (user.isLocked && user.lockUntil && user.lockUntil > new Date()) {
+          throw new Error("Cuenta bloqueada temporalmente. Intente más tarde.");
+        }
 
-        // Consolidate paths
-        const paths = new Set<string>();
-        user.profile?.menus.forEach(m => paths.add(m.menuItem.path));
-        user.roles.forEach(ur => {
-          ur.role.menus.forEach(rm => paths.add(rm.menuItem.path));
-        });
+        // Check if password has expired
+        if (user.expirationDate && user.expirationDate < new Date()) {
+          throw new Error("Su contraseña ha expirado. Contacte al administrador.");
+        }
 
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
         if (!isPasswordValid) return null;
+
+        // Consolidate paths from Profile -> Roles -> Menus
+        const paths = new Set<string>();
+        if (user.profile?.roles) {
+          user.profile.roles.forEach(pr => {
+            if (pr.role.menus) {
+              pr.role.menus.forEach(rm => paths.add(rm.menuItem.path));
+            }
+          });
+        }
 
         return {
           id: user.id,
           name: user.username,
           username: user.username,
-          profile: user.profile?.name,
-          permittedPaths: Array.from(paths)
+          profile: user.profile?.name || "invitado",
+          permittedPaths: Array.from(paths),
+          canWrite: user.canWrite
         };
       }
     })
@@ -68,6 +77,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.profile = (user as any).profile;
         token.permittedPaths = (user as any).permittedPaths;
+        token.canWrite = (user as any).canWrite;
       }
       return token;
     },
@@ -76,6 +86,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.profile = token.profile as string;
         session.user.permittedPaths = token.permittedPaths as string[];
+        session.user.canWrite = token.canWrite as boolean;
       }
       return session;
     }

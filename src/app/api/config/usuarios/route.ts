@@ -12,7 +12,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const { username, email, password, profileId, expirationDate, isLocked } = await req.json();
+    const { 
+      username, email, password, profileId, expirationDate, 
+      isLocked, canWrite, firstName, lastName, licitacionIds 
+    } = await req.json();
 
     if (!username || !password || !email) {
       return NextResponse.json({ error: 'Faltan campos obligatorios (usuario, correo, clave)' }, { status: 400 });
@@ -24,19 +27,33 @@ export async function POST(req: Request) {
       data: {
         username,
         email,
+        firstName,
+        lastName,
         password: hashedPassword,
         profileId,
         expirationDate: expirationDate ? new Date(expirationDate) : null,
         isLocked: !!isLocked,
+        canWrite: !!canWrite,
+        // Relationship mapping
+        licitaciones: licitacionIds && Array.isArray(licitacionIds) ? {
+          create: licitacionIds.map((id: string) => ({
+            licitacion: { connect: { id } }
+          }))
+        } : undefined
       },
-      include: { profile: true }
+      include: { 
+        profile: true,
+        licitaciones: {
+          include: { licitacion: true }
+        }
+      }
     });
 
     await createLog({
       action: "USER_CREATE",
       userId: session.user.id,
       username: session.user.name || "Admin",
-      description: `Creación de nuevo usuario: ${username} (${email})`
+      description: `Creación de nuevo usuario: ${username} (${firstName} ${lastName})`
     });
 
     return NextResponse.json(user);
@@ -52,7 +69,12 @@ export async function POST(req: Request) {
 export async function GET() {
   try {
     const users = await prisma.user.findMany({
-      include: { profile: true },
+      include: { 
+        profile: true,
+        licitaciones: {
+          include: { licitacion: true }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     });
     return NextResponse.json(users);
